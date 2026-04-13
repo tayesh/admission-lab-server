@@ -215,22 +215,7 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
       try {
         const db = await getDatabase();
         const rules = await getRules(db);
-        const cursor = db.collection('gst_results').find(
-          {},
-          {
-            projection: {
-              admission_roll: 1,
-              name: 1,
-              TOTAL: 1,
-              "Merit Position": 1,
-              MATH: 1,
-              BIO: 1,
-              ENG: 1,
-              hsc_gpa: 1,
-              ssc_gpa: 1
-            }
-          }
-        ).sort({ "Merit Position": 1 });
+        const cursor = db.collection('gst_results').find({}).sort({ "Merit Position": 1 });
         const total = await db.collection('gst_results').countDocuments();
         
         const startTime = Date.now();
@@ -242,7 +227,8 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
           const student = await cursor.next();
           const codes = checkEligibility(student, rules);
           const name = `"${(student.name || '').replace(/"/g, '""')}"`;
-          const eligibleCodes = `"${codes.join(',')}"`;
+          const formattedCodes = codes.map(c => String(c).trim().padStart(3, '0'));
+          const eligibleCodes = `"${formattedCodes.join(',')}"`;
           
           const row = `${student.admission_roll},${name},${student.TOTAL || 0},${student['Merit Position'] || ''},${eligibleCodes}\n`;
           
