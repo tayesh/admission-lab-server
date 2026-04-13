@@ -3,14 +3,21 @@ const app = express();
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+require('dotenv').config();
+
 const server = http.createServer(app);
+
+const port = process.env.PORT || 5000;
+const serverUrl = process.env.SERVER_URL || `http://localhost:${port}`;
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
 const io = new Server(server, {
-  cors: { origin: 'http://localhost:5173', methods: ['GET', 'POST'], credentials: true }
+  cors: { origin: [frontendUrl, 'http://localhost:5173'], methods: ['GET', 'POST'], credentials: true }
 });
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: [frontendUrl, 'http://localhost:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -18,7 +25,6 @@ app.use(cors({
 
 app.options(/.*/, cors());
 
-const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -27,7 +33,6 @@ const SSLCommerzPayment = require('sslcommerz-lts');
 const crypto = require('crypto');
 const multer = require('multer');
 const xlsx = require('xlsx');
-require('dotenv').config();
 
 const upload = multer({ storage: multer.memoryStorage() });
 const ALGORITHM = 'aes-256-cbc';
@@ -313,11 +318,6 @@ app.get('/departments', async (req, res) => {
 app.get('/submissions', verifyAdmin, async (req, res) => {
   const db = await getDatabase();
   const subs = await db.collection('submissions').find().sort({ _id: -1 }).toArray();
-  res.send(subs);
-});
-
-server.listen(port, () => console.log(`Robust Server running on port ${port}`));
-sort({ _id: -1 }).toArray();
   res.send(subs);
 });
 
