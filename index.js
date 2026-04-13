@@ -11,11 +11,21 @@ const port = process.env.PORT || 5000;
 const serverUrl = (process.env.SERVER_URL || `http://localhost:${port}`).replace(/\/$/, '');
 const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 
-const allowedOrigins = [frontendUrl, 'http://localhost:5173', 'https://pustregistration.netlify.app'];
+const allowedOrigins = [
+  frontendUrl, 
+  'http://localhost:5173', 
+  'https://pustregistration.netlify.app'
+];
 
 const io = new Server(server, {
   cors: { 
-    origin: allowedOrigins, 
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST'], 
     credentials: true 
   }
@@ -39,6 +49,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
+
+// Health Check
+app.get('/health', (req, res) => res.status(200).send('OK'));
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
