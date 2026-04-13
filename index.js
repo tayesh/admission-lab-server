@@ -243,7 +243,12 @@ app.post('/login', async (req, res) => {
   const admin = await db.collection('admins').findOne({ username });
   if (admin && await bcrypt.compare(password, admin.password)) {
     const token = jwt.sign({ id: admin._id, username: admin.username }, JWT_SECRET, { expiresIn: '2h' });
-    res.cookie('token', token, { httpOnly: true, sameSite: 'strict', maxAge: 7200000 }).send({ success: true });
+    res.cookie('token', token, { 
+      httpOnly: true, 
+      sameSite: 'none', 
+      secure: true, 
+      maxAge: 7200000 
+    }).send({ success: true });
   } else res.status(401).send({ success: false });
 });
 
