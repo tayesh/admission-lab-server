@@ -8,22 +8,34 @@ require('dotenv').config();
 const server = http.createServer(app);
 
 const port = process.env.PORT || 5000;
-const serverUrl = process.env.SERVER_URL || `http://localhost:${port}`;
-const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+const serverUrl = (process.env.SERVER_URL || `http://localhost:${port}`).replace(/\/$/, '');
+const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+
+const allowedOrigins = [frontendUrl, 'http://localhost:5173', 'https://pustregistration.netlify.app'];
 
 const io = new Server(server, {
-  cors: { origin: [frontendUrl, 'http://localhost:5173'], methods: ['GET', 'POST'], credentials: true }
+  cors: { 
+    origin: allowedOrigins, 
+    methods: ['GET', 'POST'], 
+    credentials: true 
+  }
 });
 
 // CORS Configuration
 app.use(cors({
-  origin: [frontendUrl, 'http://localhost:5173'],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
 
-app.options(/.*/, cors());
+app.options('*', cors());
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
