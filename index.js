@@ -202,7 +202,7 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
         
         activeJobs.set(jobId, buffer);
         console.log(`Export job ${jobId} ready. Buffer size: ${buffer.length}`);
-        io.to(jobId).emit('export-ready', { downloadUrl: `http://localhost:5000/download-export/${jobId}` });
+        io.to(jobId).emit('export-ready', { downloadUrl: `${serverUrl}/download-export/${jobId}` });
       } catch (err) {
         console.error('Export job error:', err);
         io.to(jobId).emit('error', { message: err.message });
@@ -313,6 +313,11 @@ app.get('/departments', async (req, res) => {
 app.get('/submissions', verifyAdmin, async (req, res) => {
   const db = await getDatabase();
   const subs = await db.collection('submissions').find().sort({ _id: -1 }).toArray();
+  res.send(subs);
+});
+
+server.listen(port, () => console.log(`Robust Server running on port ${port}`));
+sort({ _id: -1 }).toArray();
   res.send(subs);
 });
 
