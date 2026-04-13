@@ -48,8 +48,12 @@ const SSLCommerzPayment = require('sslcommerz-lts');
 const crypto = require('crypto');
 const multer = require('multer');
 const xlsx = require('xlsx');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Use OS temp directory for uploads to save RAM
+const upload = multer({ dest: os.tmpdir() });
 const ALGORITHM = 'aes-256-cbc';
 const MASTER_KEY = Buffer.from(process.env.MASTER_KEY || 'f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8');
 
@@ -141,15 +145,16 @@ app.post('/upload-gst', verifyAdmin, upload.single('file'), async (req, res) => 
   try {
     if (!req.file) return res.status(400).send({ message: 'No file' });
     const jobId = new ObjectId().toString();
-    console.log('Starting upload job:', jobId);
+    const filePath = req.file.path; // Multer saves it to a temp path
+    console.log('Starting upload job:', jobId, 'File:', filePath);
     
     // Respond immediately to avoid timeout
     res.send({ jobId });
 
     setImmediate(async () => {
       try {
-        console.log('Processing Excel buffer for job:', jobId);
-        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        console.log('Processing Excel file for job:', jobId);
+        const workbook = xlsx.readFile(filePath);
         const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         console.log(`Job ${jobId}: Parsed ${data.length} records`);
 
@@ -170,15 +175,21 @@ app.post('/upload-gst', verifyAdmin, upload.single('file'), async (req, res) => 
           
           io.to(jobId).emit('progress', { progress, remainingTime, processed: i + chunk.length });
         }
+        
+        // Clean up temp file
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        
         console.log('Upload job completed:', jobId);
         io.to(jobId).emit('completed');
       } catch (err) {
         console.error('Upload job error:', err);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         io.to(jobId).emit('error', { message: err.message });
       }
     });
   } catch (error) {
     console.error('Upload route error:', error);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (!res.headersSent) {
       res.status(500).send({ error: error.message });
     }
