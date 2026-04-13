@@ -159,19 +159,25 @@ const checkEligibility = (student, rules) => {
     if (student.hsc_gpa < dept.min_hsc_gpa) isEligible = false;
     if (student.ssc_gpa < dept.min_ssc_gpa) isEligible = false;
     if ((student.hsc_gpa + student.ssc_gpa) < dept.min_total_gpa) isEligible = false;
+    
     if (isEligible && dept.required_subjects) {
       dept.required_subjects.forEach(sub => {
-        const mark = student[sub] === '--' ? 0 : parseFloat(student[sub]);
+        const val = student[sub];
+        const mark = (val === undefined || String(val).trim() === '--' || String(val).trim() === '') ? 0 : parseFloat(val);
         if (isNaN(mark) || mark <= 0) isEligible = false;
       });
     }
-    if (isEligible && dept.min_math_mark && (parseFloat(student.MATH) < dept.min_math_mark)) isEligible = false;
-    if (isEligible && dept.min_bio_mark && (parseFloat(student.BIO) < dept.min_bio_mark)) isEligible = false;
-    if (isEligible && dept.min_english_mark && (parseFloat(student.ENG) < dept.min_english_mark)) isEligible = false;
-    if (isEligible && dept.must_have_math) {
-      const mathMark = parseFloat(student.MATH);
-      if (isNaN(mathMark) || mathMark <= 0) isEligible = false;
-    }
+
+    const getMark = (f) => {
+      const v = student[f];
+      return (v === undefined || String(v).trim() === '--' || String(v).trim() === '') ? 0 : parseFloat(v);
+    };
+
+    if (isEligible && dept.min_math_mark && (getMark('MATH') < dept.min_math_mark)) isEligible = false;
+    if (isEligible && dept.min_bio_mark && (getMark('BIO') < dept.min_bio_mark)) isEligible = false;
+    if (isEligible && dept.min_english_mark && (getMark('ENG') < dept.min_english_mark)) isEligible = false;
+    if (isEligible && dept.must_have_math && (getMark('MATH') <= 0)) isEligible = false;
+
     if (isEligible) eligibleDepts.push(dept.code);
   });
   return eligibleDepts;
