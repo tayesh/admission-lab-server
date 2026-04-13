@@ -22,20 +22,23 @@ const io = new Server(server, {
 });
 
 // CORS Configuration
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.error('CORS Blocked for origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cookie'],
+  exposedHeaders: ['Set-Cookie']
+};
 
-app.options(/.*/, cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
@@ -139,13 +142,17 @@ app.post('/upload-gst', verifyAdmin, upload.single('file'), async (req, res) => 
     if (!req.file) return res.status(400).send({ message: 'No file' });
     const jobId = new ObjectId().toString();
     console.log('Starting upload job:', jobId);
-    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-    const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
     
-    res.send({ jobId, total: data.length });
+    // Respond immediately to avoid timeout
+    res.send({ jobId });
 
     setImmediate(async () => {
       try {
+        console.log('Processing Excel buffer for job:', jobId);
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        console.log(`Job ${jobId}: Parsed ${data.length} records`);
+
         const db = await getDatabase();
         const batchSize = 1000;
         const startTime = Date.now();
@@ -171,7 +178,10 @@ app.post('/upload-gst', verifyAdmin, upload.single('file'), async (req, res) => 
       }
     });
   } catch (error) {
-    res.status(500).send({ error: error.message });
+    console.error('Upload route error:', error);
+    if (!res.headersSent) {
+      res.status(500).send({ error: error.message });
+    }
   }
 });
 
