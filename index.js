@@ -158,38 +158,67 @@ app.post('/upload-gst', verifyAdmin, upload.single('file'), async (req, res) => 
   try {
     if (!req.file) return res.status(400).send({ message: 'No file' });
     const jobId = new ObjectId().toString();
-    const filePath = req.file.path; // Multer saves it to a temp path
+    const filePath = req.file.path;
     console.log('Starting upload job:', jobId, 'File:', filePath);
     
-    // Respond immediately to avoid timeout
     res.send({ jobId });
 
     setImmediate(async () => {
+      let workbook = null;
       try {
         console.log('Processing Excel file for job:', jobId);
-        const workbook = xlsx.readFile(filePath);
-        const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-        console.log(`Job ${jobId}: Parsed ${data.length} records`);
+        // Load workbook with memory-saving options
+        workbook = xlsx.readFile(filePath, { cellStyles: false, cellNF: false, cellDates: false });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const range = xlsx.utils.decode_range(sheet['!ref']);
+        const totalRows = range.e.r - range.s.r;
+
+        // Get headers from first row
+        const headers = [];
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cell = sheet[xlsx.utils.encode_cell({ r: range.s.r, c: C })];
+          headers.push(cell ? cell.v : `Col${C}`);
+        }
 
         const db = await getDatabase();
-        const batchSize = 1000;
+        const batchSize = 500; // Smaller batch for memory safety
+        let ops = [];
         const startTime = Date.now();
 
-        for (let i = 0; i < data.length; i += batchSize) {
-          const chunk = data.slice(i, i + batchSize);
-          const ops = chunk.map(item => ({
-            updateOne: { filter: { admission_roll: item.admission_roll }, update: { $set: item }, upsert: true }
-          }));
-          await db.collection('gst_results').bulkWrite(ops);
+        // Iterate rows one by one to avoid giant JSON array allocation
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+          const item = {};
+          let hasData = false;
+          for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cell = sheet[xlsx.utils.encode_cell({ r: R, c: C })];
+            if (cell) {
+              item[headers[C - range.s.c]] = cell.v;
+              hasData = true;
+            }
+          }
           
-          const progress = Math.min(100, Math.round(((i + chunk.length) / data.length) * 100));
-          const elapsedTime = (Date.now() - startTime) / 1000;
-          const remainingTime = Math.round((elapsedTime / (i + chunk.length)) * (data.length - (i + chunk.length)));
-          
-          io.to(jobId).emit('progress', { progress, remainingTime, processed: i + chunk.length });
+          if (hasData && item.admission_roll) {
+            ops.push({
+              updateOne: { filter: { admission_roll: item.admission_roll }, update: { $set: item }, upsert: true }
+            });
+          }
+
+          if (ops.length >= batchSize || R === range.e.r) {
+            if (ops.length > 0) {
+              await db.collection('gst_results').bulkWrite(ops);
+              ops = [];
+            }
+            const processed = R - range.s.r;
+            const progress = Math.min(100, Math.round((processed / totalRows) * 100));
+            const elapsedTime = (Date.now() - startTime) / 1000;
+            const remainingTime = Math.round((elapsedTime / processed) * (totalRows - processed));
+            io.to(jobId).emit('progress', { progress, remainingTime, processed });
+          }
         }
         
-        // Clean up temp file
+        // Help GC
+        workbook = null;
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         
         console.log('Upload job completed:', jobId);
@@ -203,9 +232,7 @@ app.post('/upload-gst', verifyAdmin, upload.single('file'), async (req, res) => 
   } catch (error) {
     console.error('Upload route error:', error);
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    if (!res.headersSent) {
-      res.status(500).send({ error: error.message });
-    }
+    if (!res.headersSent) res.status(500).send({ error: error.message });
   }
 });
 
@@ -219,15 +246,18 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
     setImmediate(async () => {
       try {
         const db = await getDatabase();
-        const students = await db.collection('gst_results').find().toArray();
         const rules = await db.collection('eligibility_rules').find().toArray();
+        const cursor = db.collection('gst_results').find().sort({ 'Merit Position': 1 });
+        const total = await db.collection('gst_results').countDocuments();
+        
         const startTime = Date.now();
         const exportData = [];
+        let count = 0;
 
-        console.log(`Exporting ${students.length} students...`);
+        console.log(`Exporting ${total} students...`);
 
-        for (let i = 0; i < students.length; i++) {
-          const student = students[i];
+        while (await cursor.hasNext()) {
+          const student = await cursor.next();
           const codes = checkEligibility(student, rules);
           exportData.push({
             'Roll': student.admission_roll,
@@ -236,12 +266,13 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
             'Merit': student['Merit Position'],
             'Eligible_Codes': codes.join(',')
           });
+          count++;
 
-          if (i % 2000 === 0 && i > 0) {
-            const progress = Math.round((i / students.length) * 100);
+          if (count % 1000 === 0 || count === total) {
+            const progress = Math.round((count / total) * 100);
             const elapsedTime = (Date.now() - startTime) / 1000;
-            const remainingTime = Math.round((elapsedTime / i) * (students.length - i));
-            io.to(jobId).emit('progress', { progress, remainingTime: remainingTime > 0 ? remainingTime : null, processed: i });
+            const remainingTime = Math.round((elapsedTime / count) * (total - count));
+            io.to(jobId).emit('progress', { progress, remainingTime, processed: count });
           }
         }
 
@@ -260,7 +291,8 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).send({ error: error.message });
+    console.error('Export route error:', error);
+    if (!res.headersSent) res.status(500).send({ error: error.message });
   }
 });
 
