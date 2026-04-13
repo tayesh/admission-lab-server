@@ -109,6 +109,10 @@ async function getDatabase() {
     });
     await client.connect();
     cachedClient = client;
+    
+    // Ensure index for performance and to prevent sort memory limits
+    const db = client.db('admission');
+    await db.collection('gst_results').createIndex({ "Merit Position": 1 });
   }
   return cachedClient.db('admission');
 }
@@ -215,7 +219,7 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
       try {
         const db = await getDatabase();
         const rules = await getRules(db);
-        const cursor = db.collection('gst_results').find({}).sort({ "Merit Position": 1 });
+        const cursor = db.collection('gst_results').find({}).sort({ "Merit Position": 1 }).allowDiskUse(true);
         const total = await db.collection('gst_results').countDocuments();
         
         const startTime = Date.now();
