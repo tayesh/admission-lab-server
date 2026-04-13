@@ -68,7 +68,11 @@ const os = require('os');
 // Use OS temp directory for uploads to save RAM
 const upload = multer({ dest: os.tmpdir() });
 const ALGORITHM = 'aes-256-cbc';
-const MASTER_KEY = Buffer.from(process.env.MASTER_KEY || 'f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8');
+
+if (!process.env.MASTER_KEY) {
+  throw new Error('MASTER_KEY is required');
+}
+const MASTER_KEY = Buffer.from(process.env.MASTER_KEY);
 
 const decrypt = (encryptedData, ivHex) => {
   const iv = Buffer.from(ivHex, 'hex');
@@ -99,9 +103,9 @@ const verifyAdmin = (req, res, next) => {
 
 let cachedClient = null;
 async function getDatabase() {
-  if (!cachedClient || !cachedClient.topology || !cachedClient.topology.isConnected()) {
+  if (!cachedClient) {
     const client = new MongoClient(process.env.MONGODB_URI, {
-      serverApi: { version: ServerApiVersion.v1, strict: true, deprecationErrors: true },
+      serverApi: { version: ServerApiVersion.v1 },
     });
     await client.connect();
     cachedClient = client;
@@ -109,7 +113,16 @@ async function getDatabase() {
   return cachedClient.db('admission');
 }
 
-app.use(express.json());
+let cachedRules = null;
+async function getRules(db) {
+  if (!cachedRules) {
+    cachedRules = await db.collection('eligibility_rules').find().toArray();
+  }
+  return cachedRules;
+}
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
 // ===== Socket Handling =====
@@ -121,8 +134,18 @@ io.on('connection', (socket) => {
   });
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
+    socket.rooms.forEach(room => socket.leave(room));
   });
 });
+
+// Memory logging
+setInterval(() => {
+  const used = process.memoryUsage();
+  console.log({
+    rss: (used.rss / 1024 / 1024).toFixed(2) + " MB",
+    heapUsed: (used.heapUsed / 1024 / 1024).toFixed(2) + " MB"
+  });
+}, 10000);
 
 // ===== Helper for Eligibility Logic =====
 const checkEligibility = (student, rules) => {
@@ -191,8 +214,23 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
       const writeStream = fs.createWriteStream(tempFilePath);
       try {
         const db = await getDatabase();
-        const rules = await db.collection('eligibility_rules').find().toArray();
-        const cursor = db.collection('gst_results').find().sort({ 'Merit Position': 1 });
+        const rules = await getRules(db);
+        const cursor = db.collection('gst_results').find(
+          {},
+          {
+            projection: {
+              admission_roll: 1,
+              name: 1,
+              TOTAL: 1,
+              "Merit Position": 1,
+              MATH: 1,
+              BIO: 1,
+              ENG: 1,
+              hsc_gpa: 1,
+              ssc_gpa: 1
+            }
+          }
+        ).sort({ "Merit Position": 1 });
         const total = await db.collection('gst_results').countDocuments();
         
         const startTime = Date.now();
@@ -218,12 +256,17 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
             const elapsedTime = (Date.now() - startTime) / 1000;
             const remainingTime = Math.round((elapsedTime / count) * (total - count));
             io.to(jobId).emit('progress', { progress, remainingTime, processed: count });
+            await new Promise(r => setTimeout(r, 5));
           }
         }
 
         writeStream.end();
         writeStream.on('finish', () => {
           activeJobs.set(jobId, tempFilePath); // Store file path instead of buffer
+          setTimeout(() => {
+            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+            activeJobs.delete(jobId);
+          }, 5 * 60 * 1000);
           io.to(jobId).emit('export-ready', { downloadUrl: `${serverUrl}/download-export/${jobId}` });
         });
       } catch (err) {
@@ -249,12 +292,9 @@ app.get('/download-export/:jobId', (req, res) => {
   const readStream = fs.createReadStream(filePath);
   readStream.pipe(res);
   
-  readStream.on('end', () => {
-    // Clean up after 1 minute
-    setTimeout(() => {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      activeJobs.delete(req.params.jobId);
-    }, 60000);
+  readStream.on('close', () => {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    activeJobs.delete(req.params.jobId);
   });
 });
 
