@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node --max-old-space-size=400 index.js",
     "deploy": "curl -X POST https://api.render.com/deploy/YOUR_HOOK_HERE",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

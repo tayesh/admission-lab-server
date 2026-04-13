@@ -153,97 +153,42 @@ const checkEligibility = (student, rules) => {
 // ===== Background Jobs =====
 const activeJobs = new Map();
 
-// GST Upload Route
-app.post('/upload-gst', verifyAdmin, upload.single('file'), async (req, res) => {
+// GST Upload Batch Route (Memory Safe)
+app.post('/upload-gst-batch', verifyAdmin, async (req, res) => {
   try {
-    if (!req.file) return res.status(400).send({ message: 'No file' });
-    const jobId = new ObjectId().toString();
-    const filePath = req.file.path;
-    console.log('Starting upload job:', jobId, 'File:', filePath);
+    const { items, jobId, isLast } = req.body;
+    if (!items || !Array.isArray(items)) return res.status(400).send({ message: 'No items provided' });
+
+    const db = await getDatabase();
+    const ops = items.map(item => ({
+      updateOne: { filter: { admission_roll: item.admission_roll }, update: { $set: item }, upsert: true }
+    }));
+
+    if (ops.length > 0) {
+      await db.collection('gst_results').bulkWrite(ops);
+    }
+
+    if (isLast) {
+      io.to(jobId).emit('completed');
+    }
     
-    res.send({ jobId });
-
-    setImmediate(async () => {
-      let workbook = null;
-      try {
-        console.log('Processing Excel file for job:', jobId);
-        // Load workbook with memory-saving options
-        workbook = xlsx.readFile(filePath, { cellStyles: false, cellNF: false, cellDates: false });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const range = xlsx.utils.decode_range(sheet['!ref']);
-        const totalRows = range.e.r - range.s.r;
-
-        // Get headers from first row
-        const headers = [];
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-          const cell = sheet[xlsx.utils.encode_cell({ r: range.s.r, c: C })];
-          headers.push(cell ? cell.v : `Col${C}`);
-        }
-
-        const db = await getDatabase();
-        const batchSize = 500; // Smaller batch for memory safety
-        let ops = [];
-        const startTime = Date.now();
-
-        // Iterate rows one by one to avoid giant JSON array allocation
-        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-          const item = {};
-          let hasData = false;
-          for (let C = range.s.c; C <= range.e.c; ++C) {
-            const cell = sheet[xlsx.utils.encode_cell({ r: R, c: C })];
-            if (cell) {
-              item[headers[C - range.s.c]] = cell.v;
-              hasData = true;
-            }
-          }
-          
-          if (hasData && item.admission_roll) {
-            ops.push({
-              updateOne: { filter: { admission_roll: item.admission_roll }, update: { $set: item }, upsert: true }
-            });
-          }
-
-          if (ops.length >= batchSize || R === range.e.r) {
-            if (ops.length > 0) {
-              await db.collection('gst_results').bulkWrite(ops);
-              ops = [];
-            }
-            const processed = R - range.s.r;
-            const progress = Math.min(100, Math.round((processed / totalRows) * 100));
-            const elapsedTime = (Date.now() - startTime) / 1000;
-            const remainingTime = Math.round((elapsedTime / processed) * (totalRows - processed));
-            io.to(jobId).emit('progress', { progress, remainingTime, processed });
-          }
-        }
-        
-        // Help GC
-        workbook = null;
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        
-        console.log('Upload job completed:', jobId);
-        io.to(jobId).emit('completed');
-      } catch (err) {
-        console.error('Upload job error:', err);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        io.to(jobId).emit('error', { message: err.message });
-      }
-    });
+    res.send({ success: true });
   } catch (error) {
-    console.error('Upload route error:', error);
-    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    if (!res.headersSent) res.status(500).send({ error: error.message });
+    console.error('Batch upload error:', error);
+    res.status(500).send({ error: error.message });
   }
 });
 
-// GST Export Route
+// GST Export Route (Disk Streaming)
 app.get('/export-gst', verifyAdmin, async (req, res) => {
   try {
     const jobId = new ObjectId().toString();
+    const tempFilePath = path.join(os.tmpdir(), `export_${jobId}.csv`);
     console.log('Starting export job:', jobId);
     res.send({ jobId });
 
     setImmediate(async () => {
+      const writeStream = fs.createWriteStream(tempFilePath);
       try {
         const db = await getDatabase();
         const rules = await db.collection('eligibility_rules').find().toArray();
@@ -251,23 +196,23 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
         const total = await db.collection('gst_results').countDocuments();
         
         const startTime = Date.now();
-        const exportData = [];
         let count = 0;
 
-        console.log(`Exporting ${total} students...`);
+        writeStream.write('Roll,Name,GST Total,Merit,Eligible_Codes\n');
 
         while (await cursor.hasNext()) {
           const student = await cursor.next();
           const codes = checkEligibility(student, rules);
-          exportData.push({
-            'Roll': student.admission_roll,
-            'Name': student.name,
-            'GST Total': student.TOTAL,
-            'Merit': student['Merit Position'],
-            'Eligible_Codes': codes.join(',')
-          });
+          const name = `"${(student.name || '').replace(/"/g, '""')}"`;
+          const eligibleCodes = `"${codes.join(',')}"`;
+          
+          const row = `${student.admission_roll},${name},${student.TOTAL || 0},${student['Merit Position'] || ''},${eligibleCodes}\n`;
+          
+          if (!writeStream.write(row)) {
+            await new Promise(resolve => writeStream.once('drain', resolve));
+          }
+          
           count++;
-
           if (count % 1000 === 0 || count === total) {
             const progress = Math.round((count / total) * 100);
             const elapsedTime = (Date.now() - startTime) / 1000;
@@ -276,42 +221,41 @@ app.get('/export-gst', verifyAdmin, async (req, res) => {
           }
         }
 
-        console.log('Finalizing Excel buffer for job:', jobId);
-        const ws = xlsx.utils.json_to_sheet(exportData);
-        const wb = xlsx.utils.book_new();
-        xlsx.utils.book_append_sheet(wb, ws, 'Results');
-        const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
-        
-        activeJobs.set(jobId, buffer);
-        console.log(`Export job ${jobId} ready. Buffer size: ${buffer.length}`);
-        io.to(jobId).emit('export-ready', { downloadUrl: `${serverUrl}/download-export/${jobId}` });
+        writeStream.end();
+        writeStream.on('finish', () => {
+          activeJobs.set(jobId, tempFilePath); // Store file path instead of buffer
+          io.to(jobId).emit('export-ready', { downloadUrl: `${serverUrl}/download-export/${jobId}` });
+        });
       } catch (err) {
+        writeStream.end();
         console.error('Export job error:', err);
         io.to(jobId).emit('error', { message: err.message });
       }
     });
   } catch (error) {
-    console.error('Export route error:', error);
-    if (!res.headersSent) res.status(500).send({ error: error.message });
+    res.status(500).send({ error: error.message });
   }
 });
 
 app.get('/download-export/:jobId', (req, res) => {
-  console.log('Download requested for jobId:', req.params.jobId);
-  const buffer = activeJobs.get(req.params.jobId);
-  if (!buffer) {
-    console.error('Buffer not found for jobId:', req.params.jobId);
+  const filePath = activeJobs.get(req.params.jobId);
+  if (!filePath || !fs.existsSync(filePath)) {
     return res.status(404).send('File not found or expired');
   }
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename=gst_submission.xlsx`);
-  res.send(buffer);
   
-  // Clean up after 5 minutes to ensure slow downloads finish
-  setTimeout(() => {
-    activeJobs.delete(req.params.jobId);
-    console.log('Cleaned up buffer for jobId:', req.params.jobId);
-  }, 300000);
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename=gst_eligibility_results.csv');
+  
+  const readStream = fs.createReadStream(filePath);
+  readStream.pipe(res);
+  
+  readStream.on('end', () => {
+    // Clean up after 1 minute
+    setTimeout(() => {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      activeJobs.delete(req.params.jobId);
+    }, 60000);
+  });
 });
 
 // Regular Routes
