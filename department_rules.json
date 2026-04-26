@@ -3,192 +3,177 @@
     "code": "001",
     "name": "Computer Science & Engineering (CSE)",
     "faculty": "Engineering and Technology",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
+    "allowed_units": ["A"],
     "required_subjects": ["PHY", "CHEM", "MATH"],
-    "min_math_mark": 5.0
+    "min_subject_pct": { "MATH": 20 },
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "002",
     "name": "Electrical & Electronic Engineering (EEE)",
     "faculty": "Engineering and Technology",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
+    "allowed_units": ["A"],
     "required_subjects": ["PHY", "CHEM", "MATH"],
-    "min_math_mark": 5.0
+    "min_subject_pct": { "MATH": 20 },
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "003",
     "name": "Electrical, Electronic and Communication Engineering (EECE)",
     "faculty": "Engineering and Technology",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
+    "allowed_units": ["A"],
     "required_subjects": ["PHY", "CHEM", "MATH"],
-    "min_math_mark": 5.0
+    "min_subject_pct": { "MATH": 20 },
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "004",
     "name": "Information & Communication Engineering (ICE)",
     "faculty": "Engineering and Technology",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
+    "allowed_units": ["A"],
     "required_subjects": ["PHY", "CHEM", "MATH"],
-    "min_math_mark": 5.0
+    "min_subject_pct": { "MATH": 20 },
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "005",
     "name": "Civil Engineering (CE)",
     "faculty": "Engineering and Technology",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
+    "allowed_units": ["A"],
     "required_subjects": ["PHY", "CHEM", "MATH"],
-    "min_math_mark": 5.0
+    "min_subject_pct": { "MATH": 20 },
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "006",
     "name": "Architecture (ARCH)",
     "faculty": "Engineering and Technology",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
+    "allowed_units": ["A"],
     "required_subjects": ["PHY", "CHEM", "MATH"],
-    "min_math_mark": 5.0
+    "min_subject_pct": { "MATH": 20 },
+    "seats_A": 30, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "007",
     "name": "Urban and Regional Planning (URP)",
     "faculty": "Engineering and Technology",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
+    "allowed_units": ["A"],
     "required_subjects": ["PHY", "CHEM", "MATH"],
-    "min_math_mark": 5.0
+    "min_subject_pct": { "MATH": 20 },
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "008",
     "name": "Mathematics (MATH)",
     "faculty": "Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
-    "min_math_mark": 5.0
+    "allowed_units": ["A"],
+    "min_subject_pct": { "MATH": 20 },
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "009",
     "name": "Physics (PHY)",
     "faculty": "Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
-    "min_math_mark": 5.0
+    "allowed_units": ["A"],
+    "min_subject_pct": { "MATH": 20 },
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "010",
     "name": "Pharmacy (PHARM)",
     "faculty": "Science",
-    "min_hsc_gpa": 4.0,
-    "min_ssc_gpa": 4.0,
-    "min_total_gpa": 8.0,
+    "allowed_units": ["A"],
     "required_subjects": ["PHY", "CHEM", "BIO"],
-    "min_bio_mark": 5.0
+    "min_subject_pct": { "BIO": 20 },
+    "pharm_special": {
+      "min_hsc_phy_math_gpa": 3.50,
+      "min_ssc_gpa": 3.50,
+      "min_hsc_gpa": 3.50,
+      "min_total_gpa": 8.00,
+      "min_hsc_chem_bio_gpa": 4.00,
+      "min_ssc_chem_bio_gpa": 4.00
+    },
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "011",
     "name": "Chemistry (CHE)",
     "faculty": "Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
-    "must_have_math": true
+    "allowed_units": ["A"],
+    "must_have_math_if_unit_A": true,
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "012",
     "name": "Statistics (STAT)",
     "faculty": "Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
-    "must_have_math": true
+    "allowed_units": ["A"],
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "013",
     "name": "Geography and Environment (GE)",
     "faculty": "Life and Earth Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
-    "must_have_math": true
+    "allowed_units": ["A"],
+    "seats_A": 40, "seats_B": 0, "seats_C": 0
   },
   {
     "code": "014",
     "name": "Economics (ECO)",
     "faculty": "Humanities and Social Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
-    "must_have_math": true
+    "allowed_units": ["A", "B", "C"],
+    "must_have_math_if_unit_A": true,
+    "seats_A": 25, "seats_B": 12, "seats_C": 3
   },
   {
     "code": "015",
     "name": "Bangla (BAN)",
     "faculty": "Humanities and Social Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0
+    "allowed_units": ["A", "B", "C"],
+    "seats_A": 15, "seats_B": 15, "seats_C": 10
   },
   {
     "code": "016",
     "name": "Social Work (SW)",
     "faculty": "Humanities and Social Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0
+    "allowed_units": ["A", "B", "C"],
+    "seats_A": 15, "seats_B": 20, "seats_C": 5
   },
   {
     "code": "017",
     "name": "English (ENG)",
     "faculty": "Humanities and Social Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
-    "min_english_mark": 5.0
+    "allowed_units": ["A", "B", "C"],
+    "min_subject_pct": { "ENG": 20 },
+    "seats_A": 15, "seats_B": 15, "seats_C": 10
   },
   {
     "code": "018",
     "name": "Public Administration (PAD)",
     "faculty": "Humanities and Social Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0,
-    "min_english_mark": 5.0
+    "allowed_units": ["A", "B", "C"],
+    "min_subject_pct": { "ENG": 20 },
+    "seats_A": 15, "seats_B": 15, "seats_C": 10
   },
   {
     "code": "019",
     "name": "History (HIS)",
     "faculty": "Humanities and Social Science",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0
+    "allowed_units": ["A", "B", "C"],
+    "seats_A": 15, "seats_B": 20, "seats_C": 5
   },
   {
     "code": "020",
     "name": "Business Administration (BA)",
     "faculty": "Business Studies",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0
+    "allowed_units": ["A", "B", "C"],
+    "seats_A": 4, "seats_B": 1, "seats_C": 35
   },
   {
     "code": "021",
     "name": "Tourism and Hospitality Management (THM)",
     "faculty": "Business Studies",
-    "min_hsc_gpa": 3.5,
-    "min_ssc_gpa": 3.5,
-    "min_total_gpa": 8.0
+    "allowed_units": ["A", "B", "C"],
+    "seats_A": 10, "seats_B": 5, "seats_C": 25
   }
 ]
